@@ -1,0 +1,5 @@
+.DS_Store
+node-aria2.xcodeproj
+.idea
+build
+temp
