@@ -20,6 +20,9 @@
             'MACOSX_DEPLOYMENT_TARGET': '10.8',
           },
         }],
+        [ 'OS=="linux"', {
+          'cflags_cc': ['-std=c++11'],
+        }],
       ],
     }
   ]

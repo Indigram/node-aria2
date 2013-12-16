@@ -12,11 +12,9 @@
         'defines': [ 'NDEBUG', 'PIC' ],
       }
     },
-    'include_dirs': [
-      '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/usr/include/libxml2',
-      'deps/wslay/lib/includes',
+    'include_dirs': ['deps/wslay/lib/includes',
       'src/includes',
-      'config/<(OS)/<(target_arch)'
+      'config/<(OS)/<(target_arch)',
     ],
     'defines': [
       'PIC',
@@ -24,12 +22,35 @@
     ],
     'conditions': [
       [ 'OS=="mac"', {
+        'include_dirs': [
+          '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/usr/include/libxml2',
+        ],
         'xcode_settings': {
           'OTHER_CPLUSPLUSFLAGS': ['-std=c++11', '-stdlib=libc++'],
         },
-        'libraries': ['-lxml2', '-lz'],
         'ldflags': ['-framework CoreFoundation', '-framework Security'],
       }],
+      [ 'OS=="linux"', {
+        'defines': ['LOCALEDIR="$(localedir)"'],
+        'include_dirs': [
+          'lib',
+          '/usr/include/libxml2',
+        ],
+        'cflags_cc': ['-std=c++11'],
+        'cflags!': [ '-fno-exceptions' ],
+        'cflags_cc!': [ '-fno-exceptions' ],
+        'link_settings': {
+          'libraries': [
+            '-lrt',
+            '-L/lib/x86_64-linux-gnu',
+            '-lgcrypt',
+            '-lgnutls',
+            '-L/usr/lib',
+            '-lxml2',
+            '-lz',
+          ]
+        },
+      }]
     ],
   },
   'targets': [
@@ -46,15 +67,6 @@
     {
       'target_name': 'aria2',
       'type': 'static_library',
-      'conditions': [
-        [ 'OS=="mac"', {
-          'xcode_settings': {
-            'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
-            'GCC_ENABLE_CPP_RTTI': 'YES',
-            'MACOSX_DEPLOYMENT_TARGET': '10.8',
-          },
-        }],
-      ],
       'sources': [
         'src/option_processing.cc',
         'src/version_usage.cc',
@@ -253,11 +265,6 @@
         'src/XmlRpcRequestParserStateMachine.cc',
         'src/XmlRpcRequestParserStateImpl.cc',
         'src/XmlRpcDiskWriter.cc',
-        'src/AppleMessageDigestImpl.cc',
-        'src/AppleTLSContext.cc',
-        'src/AppleTLSSession.cc',
-        'src/InternalDHKeyExchange.cc',
-        'src/InternalARC4Encryptor.cc',
         'src/GZipEncoder.cc',
         'src/GZipDecodingStreamFilter.cc',
         'src/GZipFile.cc',
@@ -426,9 +433,7 @@
         'src/Metalink2RequestGroup.cc',
         'src/MetalinkPostDownloadHandler.cc',
         'src/metalink_helper.cc',
-        'src/clock_gettime_osx.cc',
         'src/PollEventPoll.cc',
-        'src/KqueueEventPoll.cc',
         'src/aria2api.cc',
         'src/KeepRunningCommand.cc',
         'src/ApiCallbackDownloadEventListener.cc',
@@ -438,18 +443,9 @@
       ],
       'direct_dependent_settings': {
         'include_dirs': [
-          '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk/usr/include/libxml2',
           'deps/wslay/lib/includes',
-          'src/includes',
-          'config/<(OS)/<(target_arch)'
         ],
       },
-    },
-    {
-      'target_name': 'test',
-      'type': 'executable',
-      'dependencies': [ 'aria2' ],
-      'sources': [ 'examples/libaria2ex.cc' ],
       'conditions': [
         [ 'OS=="mac"', {
           'xcode_settings': {
@@ -457,8 +453,28 @@
             'GCC_ENABLE_CPP_RTTI': 'YES',
             'MACOSX_DEPLOYMENT_TARGET': '10.8',
           },
+          'sources' : [
+            'src/AppleMessageDigestImpl.cc',
+            'src/AppleTLSContext.cc',
+            'src/AppleTLSSession.cc',
+            'src/InternalDHKeyExchange.cc',
+            'src/InternalARC4Encryptor.cc',
+            'src/clock_gettime_osx.cc',
+            'src/KqueueEventPoll.cc',
+          ],
+        }],
+        [ 'OS=="linux"', {
+          'sources' : [
+            'src/FallocFileAllocationIterator.cc',
+            'src/EpollEventPoll.cc',
+            'src/LibgnutlsTLSContext.cc',
+            'src/LibgnutlsTLSSession.cc',
+            'src/LibgcryptARC4Encryptor.cc',
+            'src/LibgcryptDHKeyExchange.cc',
+            'src/LibgcryptMessageDigestImpl.cc',
+          ],
         }],
       ],
     },
-  ]
+  ],
 }
