@@ -94,7 +94,7 @@ Handle<Value> Aria2::Config(const Arguments& args) {
     }
   }
 
-  Aria2* aria = ObjectWrap::Unwrap < Aria2 > (args.This());
+  Aria2* aria = ObjectWrap::Unwrap<Aria2>(args.This());
   assert(changeGlobalOption(aria->session, options) == 0);
 
   return scope.Close(Undefined());
@@ -103,12 +103,12 @@ Handle<Value> Aria2::Config(const Arguments& args) {
 Handle<Value> Aria2::Download(const Arguments& args) {
   HandleScope scope;
 
-  Aria2* aria = ObjectWrap::Unwrap < Aria2 > (args.This());
+  Aria2* aria = ObjectWrap::Unwrap<Aria2>(args.This());
   Handle<Value> session = External::New(aria->session);
   Handle<Value> download = Download::NewInstance(args, session);
 
   aria->downloads.insert(make_pair(
-      ObjectWrap::Unwrap<class ::Download>(download->ToObject())->getGid(),
+      ObjectWrap::Unwrap<class::Download>(download->ToObject())->getGid(),
       Persistent<Object>::New(download->ToObject())
   ));
 
@@ -118,7 +118,7 @@ Handle<Value> Aria2::Download(const Arguments& args) {
 int Aria2::EventCallback(Session* session, DownloadEvent event, A2Gid gid, void* arg) {
   unordered_map<A2Gid, Persistent<Object>>* downloads = static_cast<unordered_map<A2Gid, Persistent<Object>>*>(arg);
   Persistent<Object> downloadObject = downloads->at(gid);
-  class ::Download* download = ObjectWrap::Unwrap<class ::Download>(downloadObject);
+  class::Download* download = ObjectWrap::Unwrap<class::Download>(downloadObject);
   download->onEvent(event);
 
   if (event == EVENT_ON_DOWNLOAD_STOP ||
