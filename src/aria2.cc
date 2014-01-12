@@ -56,6 +56,7 @@ void Aria2::start() {
   uv_timer_init(uv_default_loop(), &this->runTimer);
   this->runTimer.data = this->session;
   uv_timer_start(&this->runTimer, RunWork, 0, 500);
+  uv_run(uv_default_loop(), UV_RUN_NOWAIT);
 }
 
 void Aria2::stop() {
