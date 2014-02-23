@@ -5,36 +5,33 @@
 using namespace v8;
 using namespace node;
 
-void OnExit(void* arg) {
-  Persistent<Value> aria = *(static_cast<Persistent<Value>*>(arg));
-  ObjectWrap::Unwrap<Aria2>(aria->ToObject())->destroy();
-  delete (Persistent<Value>*)arg;
-}
-
-void OnInterruptSignal(uv_signal_t* signal, int) {
-  Persistent<Value> aria = *(static_cast<Persistent<Value>*>(signal->data));
-  ObjectWrap::Unwrap<Aria2>(aria->ToObject())->stop();
-  uv_signal_stop(signal);
-  delete signal;
-}
+void Deinit(uv_signal_t* signal, int);
 
 void Init(Handle<Object> exports, Handle<Value> module) {
-  Aria2::Init();
   Download::Init();
+  Aria2::Init();
 
   Persistent<Value>* aria = new Persistent<Value>();
   *aria = Persistent<Value>::New(Aria2::NewInstance());
-
   ObjectWrap::Unwrap<Aria2>((*aria)->ToObject())->init();
-  ObjectWrap::Unwrap<Aria2>((*aria)->ToObject())->start();
-  AtExit(OnExit, aria);
 
   uv_signal_t* signal = new uv_signal_t();
   signal->data = aria;
   uv_signal_init(uv_default_loop(), signal);
-  uv_signal_start(signal, OnInterruptSignal, SIGINT);
+  uv_signal_start(signal, Deinit, SIGINT);
 
   module->ToObject()->Set(String::New("exports"), *aria);
 }
 
-NODE_MODULE(node_aria2, Init);
+void Deinit(uv_signal_t* signal, int) {
+  uv_signal_stop(signal);
+  delete signal;
+
+  Persistent<Value>* aria = static_cast<Persistent<Value>*>(signal->data);
+  ObjectWrap::Unwrap<Aria2>((*aria)->ToObject())->deinit();
+  delete aria;
+
+  Aria2::Deinit();
+}
+
+NODE_MODULE(node_aria2, Init)

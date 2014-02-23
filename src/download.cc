@@ -1,13 +1,10 @@
-#include <assert.h>
-#include <string>
-#include <aria2/aria2.h>
 #include <node.h>
-#include "download.h"
 
-using namespace std;
-using namespace aria2;
+#include "download.h"
+#include "command/start.h"
+
 using namespace v8;
-using namespace node;
+using namespace std;
 
 Persistent<Function> Download::constructor;
 
@@ -20,73 +17,25 @@ void Download::Init() {
       FunctionTemplate::New(On)->GetFunction());
   tpl->PrototypeTemplate()->Set(String::New("start"),
       FunctionTemplate::New(Start)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::New("pause"),
-      FunctionTemplate::New(Pause)->GetFunction());
-  tpl->PrototypeTemplate()->Set(String::New("remove"),
-      FunctionTemplate::New(Remove)->GetFunction());
 
   constructor = Persistent<Function>::New(tpl->GetFunction());
 }
 
-Handle<Value> Download::NewInstance(const Arguments& args, const Handle<Value> session) {
+Handle<Value> Download::NewInstance(const Handle<Value> uid, const Handle<Value> commands) {
   HandleScope scope;
 
   const int argc = 2;
-  Handle<Value> argv[argc] = {args[0], session};
+  Handle<Value> argv[argc] = {uid, commands};
   Local<Object> instance = constructor->NewInstance(argc, argv);
 
   return scope.Close(instance);
 }
 
-Download::Download(Session* session) :
-session(session),
-callbackStart(NULL),
-callbackPause(NULL),
-callbackStop(NULL),
-callbackComplete(NULL),
-callbackError(NULL),
-callbackProgress(NULL) {
-}
-
-Download::~Download() {
-  DisposeFunction(&this->callbackStart);
-  DisposeFunction(&this->callbackPause);
-  DisposeFunction(&this->callbackStop);
-  DisposeFunction(&this->callbackComplete);
-  DisposeFunction(&this->callbackError);
-  DisposeFunction(&this->callbackProgress);
-}
-
-void Download::onEvent(DownloadEvent event) {
-switch (event) {
-    case EVENT_ON_DOWNLOAD_START:
-      this->onStart();
-      break;
-    case EVENT_ON_DOWNLOAD_PAUSE:
-      this->onPause();
-      break;
-    case EVENT_ON_DOWNLOAD_STOP:
-      this->onStop();
-      break;
-    case EVENT_ON_DOWNLOAD_COMPLETE:
-      this->onComplete();
-      break;
-    case EVENT_ON_DOWNLOAD_ERROR:
-      this->onError();
-      break;
-    default:
-      break;
-  }
-}
-
-A2Gid Download::getGid() {
-  return this->gid;
-}
-
 Handle<Value> Download::New(const Arguments& args) {
   HandleScope scope;
+
   if (args.IsConstructCall()) {
-    if (args.Length()<2) {
+    if (args.Length() < 2) {
       ThrowException(Exception::TypeError(String::New("Wrong number of arguments")));
       return scope.Close(Undefined());
     }
@@ -95,11 +44,10 @@ Handle<Value> Download::New(const Arguments& args) {
       ThrowException(Exception::TypeError(String::New("Wrong arguments")));
     }
 
-    String::Utf8Value uri(args[0]->ToString());
-    Session* session = static_cast<Session*>(External::Unwrap(args[1]));
+    String::Utf8Value uid(args[0]->ToString());
+    Queue<Command>* commands = static_cast<Queue<Command>*>(External::Unwrap(args[1]));
 
-    Download* download = new Download(session);
-    download->addUri(*uri);
+    Download* download = new Download(*uid, commands);
     download->Wrap(args.This());
 
     return args.This();
@@ -111,7 +59,7 @@ Handle<Value> Download::New(const Arguments& args) {
 Handle<Value> Download::On(const Arguments& args) {
   HandleScope scope;
 
-  if (args.Length()<2) {
+  if (args.Length() < 2) {
     ThrowException(Exception::TypeError(String::New("Wrong number of arguments")));
     return scope.Close(Undefined());
   }
@@ -122,21 +70,21 @@ Handle<Value> Download::On(const Arguments& args) {
     }
   }
 
-  Download* download = ObjectWrap::Unwrap<Download>(args.This());
+  Download* download = ObjectWrap::Unwrap < Download > (args.This());
   string event = string(*String::Utf8Value(args[0]->ToString()));
 
   if (event == "start")
-    ReplaceFunction(&download->callbackStart, args[1]);
+    ReplaceFunction(&download->callbackOnStart, args[1]);
   else if (event == "pause")
-    ReplaceFunction(&download->callbackPause, args[1]);
+    ReplaceFunction(&download->callbackOnPause, args[1]);
   else if (event == "stop")
-    ReplaceFunction(&download->callbackStop, args[1]);
+    ReplaceFunction(&download->callbackOnStop, args[1]);
   else if (event == "complete")
-    ReplaceFunction(&download->callbackComplete, args[1]);
+    ReplaceFunction(&download->callbackOnComplete, args[1]);
   else if (event == "error")
-    ReplaceFunction(&download->callbackError, args[1]);
+    ReplaceFunction(&download->callbackOnError, args[1]);
   else if (event == "progress")
-    ReplaceFunction(&download->callbackProgress, args[1]);
+    ReplaceFunction(&download->callbackOnProgress, args[1]);
 
   return scope.Close(Undefined());
 }
@@ -144,33 +92,10 @@ Handle<Value> Download::On(const Arguments& args) {
 Handle<Value> Download::Start(const Arguments& args) {
   HandleScope scope;
 
-  Download* download = ObjectWrap::Unwrap<Download>(args.This());
-  download->start();
+  Download* download = ObjectWrap::Unwrap < Download > (args.This());
+  download->commands->push(unique_ptr<Command>(new command::Start(download->uid)));
 
   return scope.Close(Undefined());
-}
-
-Handle<Value> Download::Pause(const Arguments& args) {
-  HandleScope scope;
-
-  Download* download = ObjectWrap::Unwrap<Download>(args.This());
-  download->pause();
-
-  return scope.Close(Undefined());
-}
-
-Handle<Value> Download::Remove(const Arguments& args) {
-  HandleScope scope;
-
-  Download* download = ObjectWrap::Unwrap<Download>(args.This());
-  download->remove();
-
-  return scope.Close(Undefined());
-}
-
-void Download::ProgressWork(uv_timer_t* progressTimer, int status) {
-  Download* download = static_cast<Download*>(progressTimer->data);
-  download->onProgress();
 }
 
 void Download::ReplaceFunction(Persistent<Function>** destination, Handle<Value> source) {
@@ -189,95 +114,72 @@ void Download::DisposeFunction(Persistent<Function>** function) {
   }
 }
 
-void Download::addUri(string uri) {
-  A2Gid gid;
-  std::vector<std::string> uris;
-  uris.push_back(uri);
-  assert(aria2::addUri(this->session, &gid, uris, KeyVals()) == 0);
-  assert(pauseDownload(this->session, gid, false) == 0);
-  this->gid = gid;
+Download::Download(string uid, Queue<Command>* commands) :
+uid(uid),
+commands(commands),
+callbackOnStart(NULL),
+callbackOnPause(NULL),
+callbackOnStop(NULL),
+callbackOnComplete(NULL),
+callbackOnError(NULL),
+callbackOnProgress(NULL) {
 }
 
-void Download::start() {
-  assert(unpauseDownload(this->session, this->gid) == 0);
-  uv_timer_init(uv_default_loop(), &this->progressTimer);
-  this->progressTimer.data = this;
+Download::~Download() {
+  DisposeFunction(&this->callbackOnStart);
+  DisposeFunction(&this->callbackOnPause);
+  DisposeFunction(&this->callbackOnStop);
+  DisposeFunction(&this->callbackOnComplete);
+  DisposeFunction(&this->callbackOnError);
+  DisposeFunction(&this->callbackOnProgress);
 }
 
-void Download::pause() {
-  assert(pauseDownload(this->session, this->gid) == 0);
-}
-
-void Download::remove() {
-  assert(removeDownload(this->session, this->gid) == 0);
-}
-
-void Download::onStart() {
-  uv_timer_start(&this->progressTimer, ProgressWork, 0, 1000);
-
-  if (this->callbackStart)
-    (*(this->callbackStart))->Call(Context::GetCurrent()->Global(), 0, NULL);
-}
-
-void Download::onPause() {
-  uv_timer_stop(&this->progressTimer);
-
-  if (this->callbackPause) {
-    (*(this->callbackPause))->Call(Context::GetCurrent()->Global(), 0, NULL);
-  }
-
-}
-
-void Download::onStop() {
-  uv_timer_stop(&this->progressTimer);
-
-  if (this->callbackStop) {
-    (*(this->callbackStop))->Call(Context::GetCurrent()->Global(), 0, NULL);
-  }
-}
-
-void Download::onComplete() {
-  uv_timer_stop(&this->progressTimer);
-
-  if (this->callbackComplete) {
-    HandleScope scope;
-    DownloadHandle* info = getDownloadHandle(this->session, this->gid);
-    assert(info);
+void Download::processOnComplete(string path) {
+  if (this->callbackOnComplete) {
     const unsigned argc = 1;
     Local<Value> argv[argc] = {
-        Local<Value>::New(String::New(info->getDir().c_str()))
+        Local<Value>::New(String::New(path.c_str()))
     };
-    deleteDownloadHandle(info);
-    (*(this->callbackComplete))->Call(Context::GetCurrent()->Global(), argc, argv);
+    (*(this->callbackOnComplete))->Call(Context::GetCurrent()->Global(), argc, argv);
   }
 }
 
-void Download::onError() {
-  uv_timer_stop(&this->progressTimer);
-
-  if (this->callbackError) {
-    HandleScope scope;
-    DownloadHandle* info = getDownloadHandle(this->session, this->gid);
-    assert(info);
+void Download::processOnError(int code) {
+  if (this->callbackOnError) {
     const unsigned argc = 1;
-    Local<Value> argv[argc] = { Local<Value>::New(Number::New(info->getErrorCode())) };
-    deleteDownloadHandle(info);
-    (*(this->callbackError))->Call(Context::GetCurrent()->Global(), argc, argv);
+    Local<Value> argv[argc] = {
+        Local<Value>::New(Number::New(code))
+    };
+    (*(this->callbackOnError))->Call(Context::GetCurrent()->Global(), argc, argv);
   }
 }
 
-void Download::onProgress() {
-  if (this->callbackProgress) {
-    HandleScope scope;
-    DownloadHandle* info = getDownloadHandle(this->session, this->gid);
-    assert(info);
+void Download::processOnPause() {
+  if (this->callbackOnPause) {
+    (*(this->callbackOnPause))->Call(Context::GetCurrent()->Global(), 0, NULL);
+  }
+}
+
+void Download::processOnProgress(int total, int completed, int speed) {
+  if (this->callbackOnProgress) {
     const unsigned argc = 3;
     Local<Value> argv[argc] = {
-        Local<Value>::New(Number::New(info->getTotalLength())),
-        Local<Value>::New(Number::New(info->getCompletedLength())),
-        Local<Value>::New(Number::New(info->getDownloadSpeed())),
+        Local<Value>::New(Number::New(total)),
+        Local<Value>::New(Number::New(completed)),
+        Local<Value>::New(Number::New(speed)),
     };
-    deleteDownloadHandle(info);
-    (*(this->callbackProgress))->Call(Context::GetCurrent()->Global(), argc, argv);
+    (*(this->callbackOnProgress))->Call(Context::GetCurrent()->Global(), argc, argv);
+  }
+}
+
+void Download::processOnStop() {
+  if (this->callbackOnStop) {
+    (*(this->callbackOnStop))->Call(Context::GetCurrent()->Global(), 0, NULL);
+  }
+}
+
+void Download::processOnStart() {
+  if (this->callbackOnStart) {
+    (*(this->callbackOnStart))->Call(Context::GetCurrent()->Global(), 0, NULL);
   }
 }

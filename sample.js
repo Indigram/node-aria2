@@ -6,31 +6,34 @@ aria2.config({
   'bt-metadata-only': true
 });
 
-var dice = aria2.download('http://freedownloads.last.fm/download/612562195/Black%2BDice.mp3');
+var rain = aria2.download('http://www.soundjay.com/nature/rain-07.wav');
+rain.start();
 
-dice.on('start', function () {
-  console.log('dice start');
+rain.on('start', function () {
+  console.log('rain on start');
 });
 
-dice.on('pause', function () {
-  console.log('dice pause');
+rain.on('pause', function () {
+  console.log('rain on pause');
 });
 
-dice.on('stop', function () {
-  console.log('dice stop');
+rain.on('stop', function () {
+  console.log('rain on stop');
 });
 
-dice.on('complete', function (path) {
-  console.log('dice complete : ' + path);
+rain.on('complete', function (path) {
+  console.log('rain on complete : ' + path);
 });
 
-dice.on('error', function (code) {
-  console.log('dice error : ' + code);
+rain.on('error', function (code) {
+  console.log('rain on error : ' + code);
 });
 
-dice.on('progress', function (total, completed, speed) {
-  var percent = completed / total * 100;
-  console.log('dice progress : ' + completed + '/' + total + ' ' + parseInt(percent) + '% ' + parseInt(speed / 1024) + 'KiB/s');
+rain.on('progress', function (total, completed, speed) {
+  var percent = total == 0 ? 0 : completed / total * 100;
+  console.log('rain on progress : ' + completed + '/' + total + ' ' + parseInt(percent) + '% ' + parseInt(speed / 1024) + 'KiB/s');
 });
 
-dice.start();
+process.on( 'SIGINT', function() {
+  console.log( "\n SIGINT" );
+});
