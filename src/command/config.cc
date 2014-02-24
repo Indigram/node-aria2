@@ -1,3 +1,4 @@
+#include <cassert>
 #include <aria2/aria2.h>
 #include "../command.h"
 #include "config.h"

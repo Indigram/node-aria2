@@ -1,3 +1,4 @@
+#include <cassert>
 #include <chrono>
 #include <unordered_map>
 #include <assert.h>
