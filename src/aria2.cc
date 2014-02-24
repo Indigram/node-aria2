@@ -183,18 +183,21 @@ int Aria2::EventCallback(Session* session, DownloadEvent event, A2Gid gid, void*
       break;
     case EVENT_ON_DOWNLOAD_STOP:
       events->push(unique_ptr<Event>(new event::Stop(idmap->at(gid))));
+      idmap->erase(gid);
       break;
     case EVENT_ON_DOWNLOAD_COMPLETE:
       info = getDownloadHandle(session, gid);
       assert(info);
       events->push(unique_ptr<Event>(new event::Complete(idmap->at(gid), info->getDir().c_str())));
       deleteDownloadHandle(info);
+      idmap->erase(gid);
       break;
     case EVENT_ON_DOWNLOAD_ERROR:
       info = getDownloadHandle(session, gid);
       assert(info);
       events->push(unique_ptr<Event>(new event::Error(idmap->at(gid), info->getErrorCode())));
       deleteDownloadHandle(info);
+      idmap->erase(gid);
       break;
     case EVENT_ON_BT_DOWNLOAD_COMPLETE:
       break;

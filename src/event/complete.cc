@@ -13,6 +13,10 @@ Complete::Complete(string uid, string path) : uid(uid), path(path) {
 }
 
 void Complete::on(unordered_map<string, Persistent<Object>>* downloads) {
-  Download* download = ObjectWrap::Unwrap<Download>(downloads->at(uid));
+  Persistent<Object> downloadObject = downloads->at(uid);
+  Download* download = ObjectWrap::Unwrap<Download>(downloadObject);
   download->processOnComplete(path);
+
+  downloadObject.MakeWeak(NULL, NULL);
+  downloads->erase(uid);
 }

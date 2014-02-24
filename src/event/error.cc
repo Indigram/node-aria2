@@ -13,6 +13,10 @@ Error::Error(string uid, int code) : uid(uid), code(code) {
 }
 
 void Error::on(unordered_map<string, Persistent<Object>>* downloads) {
-  Download* download = ObjectWrap::Unwrap<Download>(downloads->at(uid));
+  Persistent<Object> downloadObject = downloads->at(uid);
+  Download* download = ObjectWrap::Unwrap<Download>(downloadObject);
   download->processOnError(code);
+
+  downloadObject.MakeWeak(NULL, NULL);
+  downloads->erase(uid);
 }
