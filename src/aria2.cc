@@ -5,6 +5,7 @@
 #include <aria2/aria2.h>
 #include <node.h>
 #include <unistd.h>
+#include <uuid/uuid.h>
 
 #include "command/shutdown.h"
 #include "command/config.h"
